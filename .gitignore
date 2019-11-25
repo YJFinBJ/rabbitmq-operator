@@ -1,2 +1,15 @@
-.gradle
-build/
+*/target/*
+**/target/*
+*/*.jar
+**/*.jar
+
+### IntelliJ IDEA ###
+*.iws
+*.iml
+*.ipr
+.idea
+.idea/
+.idea/workspace.xml
+!.mvn/wrapper/maven-wrapper.jar
+.mvn
+.mvn/

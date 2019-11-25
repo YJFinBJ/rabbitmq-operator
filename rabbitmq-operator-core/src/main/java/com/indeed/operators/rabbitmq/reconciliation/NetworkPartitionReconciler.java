@@ -1,5 +1,18 @@
 package com.indeed.operators.rabbitmq.reconciliation;
 
+import static com.indeed.operators.rabbitmq.Constants.RABBITMQ_STORAGE_NAME;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.indeed.operators.rabbitmq.controller.PodController;
 import com.indeed.operators.rabbitmq.controller.StatefulSetController;
 import com.indeed.operators.rabbitmq.controller.crd.NetworkPartitionResourceController;
@@ -16,22 +29,11 @@ import com.indeed.operators.rabbitmq.operations.AreQueuesEmptyOperation;
 import com.indeed.operators.rabbitmq.resources.RabbitMQContainers;
 import com.indeed.operators.rabbitmq.resources.RabbitMQPods;
 import com.indeed.operators.rabbitmq.resources.RabbitMQServices;
+
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.OwnerReference;
 import io.fabric8.kubernetes.api.model.Pod;
 import io.fabric8.kubernetes.api.model.PodBuilder;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
-import static com.indeed.operators.rabbitmq.Constants.RABBITMQ_STORAGE_NAME;
 
 public class NetworkPartitionReconciler {
     private static final Logger log = LoggerFactory.getLogger(NetworkPartitionReconciler.class);
@@ -45,16 +47,11 @@ public class NetworkPartitionReconciler {
     private final PodController podController;
     private final String namespace;
 
-    public NetworkPartitionReconciler(
-            final RabbitMQResourceController rabbitMQResourceController,
+    public NetworkPartitionReconciler(final RabbitMQResourceController rabbitMQResourceController,
             final NetworkPartitionResourceController partitionResourceController,
-            final AreQueuesEmptyOperation queuesEmptyOperation,
-            final RabbitMQPods rabbitMQPods,
-            final RabbitMQContainers rabbitMQContainers,
-            final StatefulSetController statefulSetController,
-            final PodController podController,
-            final String namespace
-    ) {
+            final AreQueuesEmptyOperation queuesEmptyOperation, final RabbitMQPods rabbitMQPods,
+            final RabbitMQContainers rabbitMQContainers, final StatefulSetController statefulSetController,
+            final PodController podController, final String namespace) {
         this.rabbitMQResourceController = rabbitMQResourceController;
         this.partitionResourceController = partitionResourceController;
         this.queuesEmptyOperation = queuesEmptyOperation;
@@ -65,13 +62,13 @@ public class NetworkPartitionReconciler {
         this.namespace = namespace;
     }
 
-    public void reconcile(
-            final Reconciliation reconciliation
-    ) throws InterruptedException {
-        final RabbitMQNetworkPartitionCustomResource networkPartition = partitionResourceController.get(reconciliation.getResourceName(), reconciliation.getNamespace());
+    public void reconcile(final Reconciliation reconciliation) throws InterruptedException {
+        final RabbitMQNetworkPartitionCustomResource networkPartition = partitionResourceController
+                .get(reconciliation.getResourceName(), reconciliation.getNamespace());
 
         if (networkPartition == null) {
-            log.info("Not reconciling because NetworkPartitionCustomResource {} no longer exists", reconciliation.getResourceName());
+            log.info("Not reconciling because NetworkPartitionCustomResource {} no longer exists",
+                    reconciliation.getResourceName());
             return;
         }
 
@@ -80,7 +77,8 @@ public class NetworkPartitionReconciler {
         final String namespace = networkPartition.getMetadata().getNamespace();
 
         final RabbitMQCustomResource partitionedRabbit = rabbitMQResourceController.get(clusterName, namespace);
-        final Map<String, String> labels = Optional.ofNullable(partitionedRabbit.getMetadata().getLabels()).orElse(new HashMap<>());
+        final Map<String, String> labels = Optional.ofNullable(partitionedRabbit.getMetadata().getLabels())
+                .orElse(new HashMap<>());
 
         log.info("Locking cluster with 'lockedBy:network-partition' label");
         labels.put(Labels.Indeed.LOCKED_BY, "network-partition");
@@ -97,8 +95,10 @@ public class NetworkPartitionReconciler {
         }
 
         for (final Set<String> partitionedPodNames : partitionSpec.getPartitions()) {
-            final RabbitMQNetworkPartitionCustomResource currentResource = partitionResourceController.get(networkPartition.getName(), networkPartition.getMetadata().getNamespace());
-            final List<Pod> partitionedPods = generateDrainPods(partitionedPodNames, clusterName, partitionedRabbit.getSpec(), currentResource);
+            final RabbitMQNetworkPartitionCustomResource currentResource = partitionResourceController
+                    .get(networkPartition.getName(), networkPartition.getMetadata().getNamespace());
+            final List<Pod> partitionedPods = generateDrainPods(partitionedPodNames, clusterName,
+                    partitionedRabbit.getSpec(), currentResource);
 
             processSideOfPartition(partitionedPods, currentResource);
         }
@@ -117,8 +117,10 @@ public class NetworkPartitionReconciler {
         log.info("Finished healing network partition");
     }
 
-    private void processSideOfPartition(final List<Pod> pods, final RabbitMQNetworkPartitionCustomResource existingResource) throws InterruptedException {
-        log.info("Creating drain pods with pods {}", pods.stream().map(ModelFieldLookups::getName).collect(Collectors.joining(",")));
+    private void processSideOfPartition(final List<Pod> pods,
+            final RabbitMQNetworkPartitionCustomResource existingResource) throws InterruptedException {
+        log.info("Creating drain pods with pods {}",
+                pods.stream().map(ModelFieldLookups::getName).collect(Collectors.joining(",")));
 
         pods.forEach(pod -> {
             final String podName = ModelFieldLookups.getName(pod);
@@ -138,11 +140,8 @@ public class NetworkPartitionReconciler {
 
         final Set<String> drained = pods.stream().map(ModelFieldLookups::getName).collect(Collectors.toSet());
 
-        final RabbitMQNetworkPartitionCustomResource resource = new RabbitMQNetworkPartitionCustomResourceBuilder(existingResource)
-                .editSpec()
-                .addToDrained(drained)
-                .endSpec()
-                .build();
+        final RabbitMQNetworkPartitionCustomResource resource = new RabbitMQNetworkPartitionCustomResourceBuilder(
+                existingResource).editSpec().addToDrained(drained).endSpec().build();
 
         partitionResourceController.patch(resource);
 
@@ -152,39 +151,29 @@ public class NetworkPartitionReconciler {
         waitForPodsToBeDeleted(pods);
     }
 
-    private List<Pod> generateDrainPods(
-            final Set<String> podNames,
-            final String clusterName,
-            final RabbitMQCustomResourceSpec rabbit,
-            final RabbitMQNetworkPartitionCustomResource networkPartition
-    ) {
-        final Container container = rabbitMQContainers.buildContainer(
-                namespace,
-                clusterName,
-                rabbit.getRabbitMQImage(),
-                rabbit.getComputeResources(),
-                0);
+    private List<Pod> generateDrainPods(final Set<String> podNames, final String clusterName,
+            final RabbitMQCustomResourceSpec rabbit, final RabbitMQNetworkPartitionCustomResource networkPartition) {
+        final Container container = rabbitMQContainers.buildContainer(namespace, clusterName, rabbit.getRabbitMQImage(),
+                rabbit.getComputeResources(), 0);
 
-        return podNames.stream().map(podName ->
-                new PodBuilder()
-                        .withNewMetadata()
-                        .withName(podName)
-                        .withNamespace(namespace)
+        return podNames.stream()
+                .map(podName -> new PodBuilder().withNewMetadata().withName(podName).withNamespace(namespace)
                         .addToLabels(Labels.Kubernetes.INSTANCE, clusterName)
                         .addToLabels(Labels.Kubernetes.MANAGED_BY, Labels.Values.RABBITMQ_OPERATOR)
                         .addToLabels(Labels.Kubernetes.PART_OF, Labels.Values.RABBITMQ)
                         .addToLabels(Labels.Indeed.LOCKED_BY, "network-partition")
                         .addToLabels(Labels.Indeed.getIndeedLabels(networkPartition))
-                        .addToOwnerReferences(new OwnerReference(networkPartition.getApiVersion(), false, true, networkPartition.getKind(), networkPartition.getName(), networkPartition.getMetadata().getUid()))
+                        .addToOwnerReferences(new OwnerReference(networkPartition.getApiVersion(), false,
+                                true, networkPartition.getKind(), networkPartition.getName(), networkPartition
+                                        .getMetadata().getUid()))
                         .endMetadata()
                         .withSpec(rabbitMQPods.buildPodSpec(clusterName, rabbit.getInitContainerImage(), container))
-                        .editSpec()
-                        .withHostname(podName)
-                        .withSubdomain(RabbitMQServices.getDiscoveryServiceName(clusterName))
-                        .addNewVolume().withName(RABBITMQ_STORAGE_NAME).withNewPersistentVolumeClaim().withClaimName(RABBITMQ_STORAGE_NAME + "-" + podName).endPersistentVolumeClaim().endVolume()
-                        .endSpec()
-                        .build()
-        ).collect(Collectors.toList());
+                        .editSpec().withHostname(podName)
+                        .withSubdomain(RabbitMQServices.getDiscoveryServiceName(clusterName)).addNewVolume()
+                        .withName(RABBITMQ_STORAGE_NAME).withNewPersistentVolumeClaim()
+                        .withClaimName(RABBITMQ_STORAGE_NAME + "-" + podName).endPersistentVolumeClaim().endVolume()
+                        .endSpec().build())
+                .collect(Collectors.toList());
     }
 
     private void waitForPodsToBecomeReady(final List<Pod> pods) {
@@ -192,7 +181,8 @@ public class NetworkPartitionReconciler {
             final String podName = ModelFieldLookups.getName(pod);
             try {
                 log.info("Waiting for pod {} to become ready", podName);
-                // if we timeout here, this reconciliation will abort and we'll try again on the next reconciliation loop
+                // if we timeout here, this reconciliation will abort and we'll
+                // try again on the next reconciliation loop
                 podController.waitForReady(podName, namespace, 1, TimeUnit.MINUTES);
             } catch (final InterruptedException e) {
                 throw new RuntimeException(e);
@@ -204,18 +194,17 @@ public class NetworkPartitionReconciler {
         for (final Pod pod : pods) {
             final String podName = ModelFieldLookups.getName(pod);
             log.info("Waiting for pod {} to be deleted", podName);
-            // if we timeout here, this reconciliation will abort and we'll try again on the next reconciliation loop
+            // if we timeout here, this reconciliation will abort and we'll try
+            // again on the next reconciliation loop
             podController.waitForDeletion(podName, namespace, 1, TimeUnit.MINUTES);
         }
     }
 
-    private void waitForPodsToDrain(
-            final String clusterName,
-            final List<Pod> pods
-    ) throws InterruptedException {
-        final RabbitMQConnectionInfo connectionInfo = new RabbitMQConnectionInfo(clusterName, namespace, RabbitMQServices.getDiscoveryServiceName(clusterName), ModelFieldLookups.getName(pods.get(0)));
+    private void waitForPodsToDrain(final String clusterName, final List<Pod> pods) throws InterruptedException {
+        final RabbitMQConnectionInfo connectionInfo = new RabbitMQConnectionInfo(clusterName, namespace,
+                RabbitMQServices.getDiscoveryServiceName(clusterName), ModelFieldLookups.getName(pods.get(0)));
 
-        while(!queuesEmptyOperation.execute(connectionInfo)) {
+        while (!queuesEmptyOperation.execute(connectionInfo)) {
             Thread.sleep(TimeUnit.SECONDS.toMillis(5));
         }
     }

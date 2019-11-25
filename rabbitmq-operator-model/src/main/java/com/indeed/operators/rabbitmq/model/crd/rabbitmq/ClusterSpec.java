@@ -1,14 +1,15 @@
 package com.indeed.operators.rabbitmq.model.crd.rabbitmq;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import com.fasterxml.jackson.databind.JsonDeserializer;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.google.common.collect.Lists;
-import io.sundr.builder.annotations.Buildable;
 
-import java.util.List;
+import io.sundr.builder.annotations.Buildable;
 
 @Buildable(
         builderPackage = "io.fabric8.kubernetes.api.builder",
@@ -33,7 +34,7 @@ public class ClusterSpec {
             @JsonProperty("operatorPolicies") final List<OperatorPolicySpec> operatorPolicies
     ) {
         this.highWatermarkFraction = highWatermarkFraction;
-        this.users = (users == null ? Lists.newArrayList() : users);
+        this.users = users == null ? Lists.newArrayList() : users;
         this.shovels = (shovels == null ? Lists.newArrayList() : shovels);
         this.policies = (policies == null ? Lists.newArrayList() : policies);
         this.operatorPolicies = (operatorPolicies == null ? Lists.newArrayList() : operatorPolicies);

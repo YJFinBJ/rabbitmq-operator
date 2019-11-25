@@ -1,5 +1,20 @@
 package com.indeed.operators.rabbitmq.reconciliation;
 
+import static com.indeed.operators.rabbitmq.Constants.RABBITMQ_STORAGE_NAME;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.Map;
+import java.util.Optional;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.indeed.operators.rabbitmq.controller.PersistentVolumeClaimController;
@@ -13,28 +28,15 @@ import com.indeed.operators.rabbitmq.model.crd.rabbitmq.RabbitMQCustomResource;
 import com.indeed.operators.rabbitmq.model.crd.rabbitmq.RabbitMQCustomResourceBuilder;
 import com.indeed.operators.rabbitmq.model.crd.rabbitmq.RabbitMQCustomResourceSpecBuilder;
 import com.indeed.operators.rabbitmq.model.rabbitmq.RabbitMQCluster;
-import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.UserReconciler;
 import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.OperatorPolicyReconciler;
 import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.PolicyReconciler;
 import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.RabbitMQClusterFactory;
 import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.ShovelReconciler;
+import com.indeed.operators.rabbitmq.reconciliation.rabbitmq.UserReconciler;
+
 import io.fabric8.kubernetes.api.model.ObjectMetaBuilder;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetSpecBuilder;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Map;
-import java.util.Optional;
-
-import static com.indeed.operators.rabbitmq.Constants.RABBITMQ_STORAGE_NAME;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class TestRabbitMQClusterReconciler {
@@ -79,7 +81,9 @@ public class TestRabbitMQClusterReconciler {
 
     @BeforeEach
     void setup() {
-        reconciler = new RabbitMQClusterReconciler(clusterFactory, controller, secretsController, servicesController, statefulSetController, podDisruptionBudgetController, persistentVolumeClaimController, shovelReconciler, usersReconciler, policyReconciler, operatorPolicyReconciler);
+        reconciler = new RabbitMQClusterReconciler(clusterFactory, controller, secretsController, servicesController,
+                statefulSetController, podDisruptionBudgetController, persistentVolumeClaimController, shovelReconciler,
+                usersReconciler, policyReconciler, operatorPolicyReconciler);
     }
 
     @Test
@@ -89,12 +93,7 @@ public class TestRabbitMQClusterReconciler {
         labels.put(Labels.Indeed.LOCKED_BY, "somevalue");
 
         final RabbitMQCustomResource resource = new RabbitMQCustomResourceBuilder()
-                .withMetadata(
-                        new ObjectMetaBuilder()
-                                .withLabels(labels)
-                                .build()
-                )
-                .build();
+                .withMetadata(new ObjectMetaBuilder().withLabels(labels).build()).build();
 
         when(controller.get(rec.getResourceName(), rec.getNamespace())).thenReturn(resource);
 
@@ -124,50 +123,24 @@ public class TestRabbitMQClusterReconciler {
     void scalingDownDeletesOrphanPVCs() throws InterruptedException, RabbitClusterConfigurationException {
         final Reconciliation rec = new Reconciliation(NAME, NAME, NAMESPACE, "type");
 
-        final StatefulSet originalStatefulSet = new StatefulSet(
-                "apps/v1",
-                "StatefulSet",
-                new ObjectMetaBuilder().build(),
-                new StatefulSetSpecBuilder().withReplicas(4).build(),
-                null
-        );
+        final StatefulSet originalStatefulSet = new StatefulSet("apps/v1", "StatefulSet",
+                new ObjectMetaBuilder().build(), new StatefulSetSpecBuilder().withReplicas(4).build(), null);
 
         final RabbitMQCustomResource scaledResource = new RabbitMQCustomResourceBuilder()
-                .withMetadata(
-                        new ObjectMetaBuilder()
-                                .withName(NAME)
-                                .withNamespace(NAMESPACE)
-                                .build()
-                )
-                .withSpec(
-                        new RabbitMQCustomResourceSpecBuilder()
-                                .withReplicas(3)
-                                .build()
-                )
-                .build();
+                .withMetadata(new ObjectMetaBuilder().withName(NAME).withNamespace(NAMESPACE).build())
+                .withSpec(new RabbitMQCustomResourceSpecBuilder().withReplicas(3).build()).build();
 
         when(controller.get(rec.getResourceName(), rec.getNamespace())).thenReturn(scaledResource);
 
-        when(clusterFactory.fromCustomResource(scaledResource)).thenReturn(
-                RabbitMQCluster.newBuilder()
-                        .withName(NAME)
-                        .withNamespace(NAMESPACE)
-                        .withAdminSecret(null)
-                        .withErlangCookieSecret(null)
-                        .withMainService(null)
-                        .withDiscoveryService(null)
-                        .withLoadBalancerService(Optional.empty())
-                        .withNodePortService(Optional.empty())
-                        .withStatefulSet(originalStatefulSet)
-                        .withPodDisruptionBudget(null)
-                        .withShovels(Lists.newArrayList())
-                        .withUsers(Lists.newArrayList())
-                        .withPolicies(Lists.newArrayList())
-                        .withOperatorPolicies(Lists.newArrayList())
-                        .build()
-        );
+        when(clusterFactory.fromCustomResource(scaledResource)).thenReturn(RabbitMQCluster.newBuilder().withName(NAME)
+                .withNamespace(NAMESPACE).withAdminSecret(null).withErlangCookieSecret(null).withMainService(null)
+                .withDiscoveryService(null).withLoadBalancerService(Optional.empty())
+                .withNodePortService(Optional.empty()).withStatefulSet(originalStatefulSet)
+                .withPodDisruptionBudget(null).withShovels(Lists.newArrayList()).withUsers(Lists.newArrayList())
+                .withPolicies(Lists.newArrayList()).withOperatorPolicies(Lists.newArrayList()).build());
 
-        // This call will happen twice.  In both cases it will occur before the StatefulSet has been patched, hence it
+        // This call will happen twice. In both cases it will occur before the
+        // StatefulSet has been patched, hence it
         // will reflect the origin unscaled replica count.
         when(statefulSetController.get(NAME, NAMESPACE)).thenReturn(originalStatefulSet);
 
@@ -181,51 +154,25 @@ public class TestRabbitMQClusterReconciler {
     void scalingDownPreservesOrphanPVCs() throws InterruptedException, RabbitClusterConfigurationException {
         final Reconciliation rec = new Reconciliation(NAME, NAME, NAMESPACE, "type");
 
-        final StatefulSet originalStatefulSet = new StatefulSet(
-                "apps/v1",
-                "StatefulSet",
-                new ObjectMetaBuilder().build(),
-                new StatefulSetSpecBuilder().withReplicas(4).build(),
-                null
-        );
+        final StatefulSet originalStatefulSet = new StatefulSet("apps/v1", "StatefulSet",
+                new ObjectMetaBuilder().build(), new StatefulSetSpecBuilder().withReplicas(4).build(), null);
 
         final RabbitMQCustomResource scaledResource = new RabbitMQCustomResourceBuilder()
-                .withMetadata(
-                        new ObjectMetaBuilder()
-                                .withName(NAME)
-                                .withNamespace(NAMESPACE)
-                                .build()
-                )
-                .withSpec(
-                        new RabbitMQCustomResourceSpecBuilder()
-                                .withReplicas(3)
-                                .withPreserveOrphanPVCs(true)
-                                .build()
-                )
+                .withMetadata(new ObjectMetaBuilder().withName(NAME).withNamespace(NAMESPACE).build())
+                .withSpec(new RabbitMQCustomResourceSpecBuilder().withReplicas(3).withPreserveOrphanPVCs(true).build())
                 .build();
 
         when(controller.get(rec.getResourceName(), rec.getNamespace())).thenReturn(scaledResource);
 
-        when(clusterFactory.fromCustomResource(scaledResource)).thenReturn(
-                RabbitMQCluster.newBuilder()
-                        .withName(NAME)
-                        .withNamespace(NAMESPACE)
-                        .withAdminSecret(null)
-                        .withErlangCookieSecret(null)
-                        .withMainService(null)
-                        .withDiscoveryService(null)
-                        .withLoadBalancerService(Optional.empty())
-                        .withNodePortService(Optional.empty())
-                        .withStatefulSet(originalStatefulSet)
-                        .withPodDisruptionBudget(null)
-                        .withShovels(Lists.newArrayList())
-                        .withUsers(Lists.newArrayList())
-                        .withPolicies(Lists.newArrayList())
-                        .withOperatorPolicies(Lists.newArrayList())
-                        .build()
-        );
+        when(clusterFactory.fromCustomResource(scaledResource)).thenReturn(RabbitMQCluster.newBuilder().withName(NAME)
+                .withNamespace(NAMESPACE).withAdminSecret(null).withErlangCookieSecret(null).withMainService(null)
+                .withDiscoveryService(null).withLoadBalancerService(Optional.empty())
+                .withNodePortService(Optional.empty()).withStatefulSet(originalStatefulSet)
+                .withPodDisruptionBudget(null).withShovels(Lists.newArrayList()).withUsers(Lists.newArrayList())
+                .withPolicies(Lists.newArrayList()).withOperatorPolicies(Lists.newArrayList()).build());
 
-        // This call will happen twice.  In both cases it will occur before the StatefulSet has been patched, hence it
+        // This call will happen twice. In both cases it will occur before the
+        // StatefulSet has been patched, hence it
         // will reflect the origin unscaled replica count.
         when(statefulSetController.get(NAME, NAMESPACE)).thenReturn(originalStatefulSet);
 
